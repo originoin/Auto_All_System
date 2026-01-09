@@ -1,0 +1,37 @@
+# Exclude configuration files with sensitive data
+accounts.txt
+proxies.txt
+sheerIDlink.txt
+无资格号.txt
+2fa_codes.txt
+
+# Exclude all images by default
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.svg
+*.ico
+
+# Exception: Keep specific community images
+!Telegram.jpg
+!QQ.jpg
+
+# Exclude build artifacts and temp files
+build/
+dist/
+*.spec
+__pycache__/
+*.pyc
+temp_config.json
+temp_icon.png
+debug_*.png
+
+# Exclude IDE settings
+.idea/
+.vscode/
+
+# Exclude virtual env
+venv/
+env/
