@@ -86,7 +86,7 @@ class SheerIDWindow(QDialog):
         top_layout = QHBoxLayout()
         
         top_layout.addWidget(QLabel("API Key:"))
-        self.api_key_input = QLineEdit("0c5cba479e6aa914d66a287d88b15bea")
+        self.api_key_input = QLineEdit("")
         self.api_key_input.setFixedWidth(250)
         top_layout.addWidget(self.api_key_input)
         

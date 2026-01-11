@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://batch.1key.me"
-DEFAULT_API_KEY = "0c5cba479e6aa914d66a287d88b15bea"
+DEFAULT_API_KEY = ""  # 请在GUI中输入你的SheerID API密钥
 
 class SheerIDVerifier:
     def __init__(self, api_key=DEFAULT_API_KEY):
