@@ -12,6 +12,9 @@
 🏆 **推荐使用比特浏览器 (BitBrowser)** - 专为跨境电商/社媒营销设计的指纹浏览器
 👉 **[点击注册 / Register Here](https://www.bitbrowser.cn/?code=vl9b7j)**
 
+💳 **虚拟卡推荐 - HolyCard** - 支持全球订阅服务的虚拟信用卡
+👉 **[立即申请 / Apply Now](https://www.holy-card.com/)**
+
 *(通过此链接注册可获得官方支持与优惠)*
 
 ---
