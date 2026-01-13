@@ -162,11 +162,16 @@ class AutoAllInOneWorker(QThread):
                     # 从 auto_bind_card 导入
                     from auto_bind_card import check_and_login, auto_bind_card
                     
-                    # Step 1: 登录检测
-                    self.log_signal.emit(f"  🔐 步骤1: 登录检测...")
+                    # Step 1: 导航到目标页面并登录检测
+                    self.log_signal.emit(f"  🔐 步骤1: 导航并登录检测...")
                     target_url = "https://one.google.com/ai-student?g1_landing_page=75&utm_source=antigravity&utm_campaign=argon_limit_reached"
                     
-                    login_success, login_msg = await check_and_login(page, account_info, target_url)
+                    # 先导航到目标页面
+                    await page.goto(target_url, wait_until='domcontentloaded', timeout=30000)
+                    await asyncio.sleep(3)
+                    
+                    # 然后检测登录
+                    login_success, login_msg = await check_and_login(page, account_info)
                     if not login_success:
                         return False, f"登录失败: {login_msg}"
                     
