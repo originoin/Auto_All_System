@@ -123,12 +123,21 @@ example5@gmail.com---My#Pass@456---helper@email.com---LMNO3456PQRS7890
 - **辅助邮箱和2FA是可选的**：可以只填邮箱和密码
 - **注释**：以 `#` 开头的行会被忽略
 - **一个文件只能用一种分隔符**
+- **账号状态**：从accounts.txt导入的账号默认状态为 `pending_check`（待检测资格）
 
 **💡 推荐分隔符**：
 - `----` (四短横线) - 推荐，最清晰
 - `---` (三短横线) - 也很好用
 - `|` (竖线) - 简洁
 - `,` (逗号) - 需注意密码中不能有逗号
+
+**📋 账号状态说明**：
+- `pending_check` - 待检测资格（从accounts.txt导入）
+- `link_ready` - 有资格待验证
+- `verified` - 已验证未绑卡
+- `subscribed` - 已订阅
+- `ineligible` - 无资格
+- `error` - 错误
 
 ### 2. `proxies.txt` (代理IP)
 
