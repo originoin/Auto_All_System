@@ -271,23 +271,51 @@ async def google_login(page: Page, account_info: dict) -> Tuple[bool, str]:
     except Exception as e:
         print(f"[GoogleLogin] 密码输入异常: {e}")
     
-    # 4. 处理验证步骤 (循环检测)
+    # 4. 处理验证步骤 (循环检测) - 直接检测页面元素而非依赖状态函数
     max_checks = 5
     for i in range(max_checks):
         print(f"[GoogleLogin] 检查验证步骤 ({i+1}/{max_checks})...")
         
-        status, _ = await check_google_login_status(page)
+        # 检查是否已登录
+        current_url = page.url
+        for pattern in LOGGED_IN_URL_PATTERNS:
+            if pattern in current_url:
+                print("[GoogleLogin] 登录成功")
+                return True, "登录成功"
         
-        if status == GoogleLoginStatus.LOGGED_IN:
-            print("[GoogleLogin] 登录成功")
-            return True, "登录成功"
+        # A. 直接检测2FA输入框
+        totp_input = page.locator('input[name="totpPin"], input[id="totpPin"], input[type="tel"]').first
+        if await totp_input.count() > 0 and await totp_input.is_visible():
+            secret = account_info.get('secret') or account_info.get('2fa_secret') or account_info.get('secret_key')
+            if secret:
+                try:
+                    s = secret.replace(" ", "").strip()
+                    totp = pyotp.TOTP(s)
+                    code = totp.now()
+                    print(f"[GoogleLogin] 检测到2FA，输入代码: {code}")
+                    await totp_input.fill(code)
+                    await page.click('#totpNext >> button')
+                    await asyncio.sleep(3)
+                    continue
+                except Exception as e:
+                    return False, f"2FA生成失败: {e}"
+            else:
+                return False, "需要2FA但未提供密钥"
         
-        # A. 处理辅助邮箱验证
-        if status == GoogleLoginStatus.NEED_RECOVERY:
+        # B. 处理"Confirm your recovery email"选择页面
+        recovery_option = page.locator('div[role="link"]:has-text("Confirm your recovery email")').first
+        if await recovery_option.count() > 0 and await recovery_option.is_visible():
+            print("[GoogleLogin] 点击 'Confirm your recovery email' 选项")
+            await recovery_option.click(force=True)
+            await asyncio.sleep(3)
+            continue
+        
+        # C. 直接检测辅助邮箱输入框
+        recovery_input = page.locator('input[name="knowledgePreregisteredEmailResponse"], input[id="knowledge-preregistered-email-response"]').first
+        if await recovery_input.count() > 0 and await recovery_input.is_visible():
             backup_email = account_info.get('backup') or account_info.get('backup_email') or account_info.get('recovery_email')
             if backup_email:
                 print(f"[GoogleLogin] 输入辅助邮箱: {backup_email}")
-                recovery_input = page.locator('input[name="knowledgePreregisteredEmailResponse"], input[id="knowledge-preregistered-email-response"]')
                 await recovery_input.fill(backup_email)
                 next_btn = page.locator('button:has-text("Next"), button:has-text("下一步")').first
                 if await next_btn.count() > 0:
@@ -295,34 +323,9 @@ async def google_login(page: Page, account_info: dict) -> Tuple[bool, str]:
                 else:
                     await page.keyboard.press('Enter')
                 await asyncio.sleep(3)
+                continue
             else:
                 return False, "需要辅助邮箱但未提供"
-        
-        # B. 处理2FA
-        if status == GoogleLoginStatus.NEED_2FA:
-            secret = account_info.get('secret') or account_info.get('2fa_secret') or account_info.get('secret_key')
-            if secret:
-                try:
-                    s = secret.replace(" ", "").strip()
-                    totp = pyotp.TOTP(s)
-                    code = totp.now()
-                    print(f"[GoogleLogin] 输入2FA代码: {code}")
-                    totp_input = page.locator('input[name="totpPin"], input[id="totpPin"], input[type="tel"]').first
-                    await totp_input.fill(code)
-                    await page.click('#totpNext >> button')
-                    await asyncio.sleep(3)
-                except Exception as e:
-                    return False, f"2FA生成失败: {e}"
-            else:
-                return False, "需要2FA但未提供密钥"
-        
-        # C. 处理"Confirm your recovery email"选择页面
-        recovery_option = page.locator('div[role="link"]:has-text("Confirm your recovery email")').first
-        if await recovery_option.count() > 0 and await recovery_option.is_visible():
-            print("[GoogleLogin] 点击 'Confirm your recovery email' 选项")
-            await recovery_option.click(force=True)
-            await asyncio.sleep(3)
-            continue
         
         await asyncio.sleep(2)
     

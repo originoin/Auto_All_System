@@ -1,7 +1,7 @@
 """
 @file account_manager.py
 @brief Google账号状态管理模块
-@details 提供账号在不同状态之间转换的功能
+@details 提供账号在不同状态之间转换的功能（只更新数据库，不导出txt）
 """
 import sys
 import os
@@ -25,7 +25,7 @@ class AccountManager:
     """
     @class AccountManager
     @brief 账号状态管理器
-    @details 管理Google账号在各个状态之间的转换
+    @details 管理Google账号在各个状态之间的转换（只更新数据库）
     """
     
     @staticmethod
@@ -68,7 +68,6 @@ class AccountManager:
         email, pwd, rec, sec, link = AccountManager._parse(line)
         if email:
             DBManager.upsert_account(email, pwd, rec, sec, link, status='link_ready')
-            DBManager.export_to_files()
         else:
             print(f"[AM] save_link: 无法解析邮箱，跳过")
 
@@ -82,7 +81,6 @@ class AccountManager:
         email, pwd, rec, sec, link = AccountManager._parse(line)
         if email:
             DBManager.upsert_account(email, pwd, rec, sec, link, status='verified')
-            DBManager.export_to_files()
 
     @staticmethod
     def move_to_ineligible(line):
@@ -94,7 +92,6 @@ class AccountManager:
         email, pwd, rec, sec, link = AccountManager._parse(line)
         if email:
             DBManager.upsert_account(email, pwd, rec, sec, link, status='ineligible')
-            DBManager.export_to_files()
         else:
             print(f"[AM] move_to_ineligible: 无法解析邮箱，跳过")
 
@@ -108,7 +105,6 @@ class AccountManager:
         email, pwd, rec, sec, link = AccountManager._parse(line)
         if email:
             DBManager.upsert_account(email, pwd, rec, sec, link, status='error')
-            DBManager.export_to_files()
         else:
             print(f"[AM] move_to_error: 无法解析邮箱，跳过")
 
@@ -122,7 +118,6 @@ class AccountManager:
         email, pwd, rec, sec, link = AccountManager._parse(line)
         if email:
             DBManager.upsert_account(email, pwd, rec, sec, link, status='subscribed')
-            DBManager.export_to_files()
             
     @staticmethod
     def remove_from_file_unsafe(file_key, line_or_email):
@@ -133,3 +128,4 @@ class AccountManager:
         """
         # No-op with DB approach, handled by status update
         pass
+
