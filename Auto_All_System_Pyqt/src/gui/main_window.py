@@ -44,6 +44,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("比特浏览器窗口管理工具")
         self.resize(1300, 800)
         
+        # 任务控制标志
+        self._stop_flag = False
+        
         # 设置窗口图标
         self._set_icon()
         
@@ -450,14 +453,26 @@ class MainWindow(QMainWindow):
         
         # 浏览器表格
         self.browser_table = QTableWidget()
-        self.browser_table.setColumnCount(5)
-        self.browser_table.setHorizontalHeaderLabels(["选择", "名称", "窗口ID", "2FA验证码", "备注"])
-        self.browser_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self.browser_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.browser_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        self.browser_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        self.browser_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        self.browser_table.setColumnCount(6)
+        self.browser_table.setHorizontalHeaderLabels(["选择", "序号", "名称", "窗口ID", "2FA验证码", "备注"])
+        
+        # 设置列宽可拖动（Interactive模式）
+        header = self.browser_table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        
+        # 设置初始列宽
+        self.browser_table.setColumnWidth(0, 40)   # 选择
+        self.browser_table.setColumnWidth(1, 50)   # 序号
+        self.browser_table.setColumnWidth(2, 120)  # 名称
+        self.browser_table.setColumnWidth(3, 280)  # 窗口ID
+        self.browser_table.setColumnWidth(4, 80)   # 2FA验证码
+        self.browser_table.setColumnWidth(5, 200)  # 备注
+        
+        # 最后一列自动拉伸填充剩余空间
+        header.setStretchLastSection(True)
+        
         self.browser_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.browser_table.setAlternatingRowColors(True)  # 隔行变色
         layout.addWidget(self.browser_table)
         
         group.setLayout(layout)
@@ -538,6 +553,7 @@ class MainWindow(QMainWindow):
                 name = browser.get('name', '')
                 browser_id = browser.get('id', '')
                 remark = browser.get('remark', '')
+                seq = browser.get('seq', '')
                 
                 # 生成2FA验证码
                 totp_code = ''
@@ -561,10 +577,11 @@ class MainWindow(QMainWindow):
                 chk_item.setCheckState(Qt.CheckState.Unchecked)
                 self.browser_table.setItem(row, 0, chk_item)
                 
-                self.browser_table.setItem(row, 1, QTableWidgetItem(name))
-                self.browser_table.setItem(row, 2, QTableWidgetItem(browser_id))
-                self.browser_table.setItem(row, 3, QTableWidgetItem(totp_code))
-                self.browser_table.setItem(row, 4, QTableWidgetItem(remark[:50] + '...' if len(remark) > 50 else remark))
+                self.browser_table.setItem(row, 1, QTableWidgetItem(str(seq)))
+                self.browser_table.setItem(row, 2, QTableWidgetItem(name))
+                self.browser_table.setItem(row, 3, QTableWidgetItem(browser_id))
+                self.browser_table.setItem(row, 4, QTableWidgetItem(totp_code))
+                self.browser_table.setItem(row, 5, QTableWidgetItem(remark[:80] + '...' if len(remark) > 80 else remark))
             
             self.log(f"列表刷新完成，共 {len(browsers)} 个窗口")
             
@@ -629,12 +646,23 @@ class MainWindow(QMainWindow):
             # 获取可用代理
             proxies = DBManager.get_available_proxies()
             
+            # 确保_legacy目录在路径中
+            _legacy_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '_legacy')
+            if _legacy_dir not in sys.path:
+                sys.path.insert(0, _legacy_dir)
+            
             # 导入创建窗口函数
             try:
                 from create_window import create_browser_window, get_browser_info, get_next_window_name
-            except ImportError:
-                self.log("❌ 无法导入create_window模块")
+            except ImportError as e:
+                self.log(f"❌ 无法导入create_window模块: {e}")
                 return
+            
+            # 禁用按钮
+            self.btn_create_template.setEnabled(False)
+            self.btn_create_default.setEnabled(False)
+            self.btn_stop.setEnabled(True)
+            self._stop_flag = False
             
             # 获取模板信息
             template_config = None
@@ -643,7 +671,12 @@ class MainWindow(QMainWindow):
             if template_id:
                 template_info = get_browser_info(template_id)
                 if template_info:
-                    prefix = template_info.get('name', prefix)
+                    ref_name = template_info.get('name', '')
+                    if ref_name and not self.prefix_input.text().strip():
+                        if '_' in ref_name:
+                            prefix = '_'.join(ref_name.split('_')[:-1])
+                        else:
+                            prefix = ref_name
                     template_config = template_info
                 else:
                     self.log(f"⚠️ 模板 {template_id} 不存在，使用默认配置")
@@ -652,23 +685,25 @@ class MainWindow(QMainWindow):
             
             # 获取额外配置
             platform_url = self.platform_input.text().strip()
-            extra_urls = [u.strip() for u in self.extra_url_input.text().split(',') if u.strip()]
+            extra_url = self.extra_url_input.text().strip()
             
             created_count = 0
             proxy_index = 0
             
             for i, acc in enumerate(accounts):
+                if self._stop_flag:
+                    self.log("\n⚠️ 任务已停止")
+                    break
+                    
                 email = acc.get('email', '')
-                password = acc.get('password', '')
-                recovery_email = acc.get('recovery_email', '')
-                secret_key = acc.get('secret_key', '')
                 
-                # 构建备注
-                remark = f"{email}----{password}"
-                if recovery_email:
-                    remark += f"----{recovery_email}"
-                if secret_key:
-                    remark += f"----{secret_key}"
+                # 构建账号字典（兼容legacy格式）
+                account_dict = {
+                    'email': acc.get('email', ''),
+                    'password': acc.get('password', ''),
+                    'backup_email': acc.get('recovery_email', ''),
+                    '2fa_secret': acc.get('secret_key', '')
+                }
                 
                 # 分配代理
                 proxy_info = None
@@ -676,44 +711,42 @@ class MainWindow(QMainWindow):
                     proxy = proxies[proxy_index]
                     proxy_index += 1
                     proxy_info = {
-                        'proxyType': proxy.get('proxy_type', 'socks5'),
-                        'proxyHost': proxy.get('host', ''),
-                        'proxyPort': proxy.get('port', ''),
-                        'proxyUser': proxy.get('username', ''),
-                        'proxyPass': proxy.get('password', '')
+                        'id': proxy.get('id'),
+                        'type': proxy.get('proxy_type', 'socks5'),
+                        'host': proxy.get('host', ''),
+                        'port': str(proxy.get('port', '')),
+                        'username': proxy.get('username', ''),
+                        'password': proxy.get('password', '')
                     }
                 
-                # 生成窗口名称
-                window_name = get_next_window_name(prefix)
-                
-                self.log(f"[{i+1}/{len(accounts)}] 创建窗口: {window_name}")
+                self.log(f"[{i+1}/{len(accounts)}] 创建窗口: {email}")
+                QApplication.processEvents()  # 刷新UI
                 
                 try:
-                    # 创建窗口
-                    result = create_browser_window(
-                        email=email,
-                        remark=remark,
-                        window_name=window_name,
-                        template_config=template_config,
-                        proxy_info=proxy_info,
-                        platform_url=platform_url,
-                        extra_urls=extra_urls
+                    # 调用legacy的create_browser_window
+                    browser_id, error = create_browser_window(
+                        account=account_dict,
+                        reference_browser_id=template_id,
+                        proxy=proxy_info,
+                        platform=platform_url,
+                        extra_url=extra_url,
+                        name_prefix=prefix,
+                        template_config=template_config
                     )
                     
-                    if result and result.get('success'):
-                        browser_id = result.get('data', {}).get('id', '')
+                    if browser_id:
                         self.log(f"  ✅ 创建成功: {browser_id}")
                         
                         # 更新数据库中账号的browser_id
-                        if browser_id:
-                            DBManager.update_account_browser_id(email, browser_id)
-                        
+                        DBManager.update_account_browser_id(email, browser_id)
                         created_count += 1
                     else:
-                        self.log(f"  ❌ 创建失败: {result}")
+                        self.log(f"  ❌ 创建失败: {error}")
                         
                 except Exception as e:
                     self.log(f"  ❌ 创建出错: {e}")
+                    import traceback
+                    traceback.print_exc()
             
             self.log(f"\n创建完成，成功 {created_count}/{len(accounts)} 个")
             self._refresh_browser_list()
@@ -723,11 +756,18 @@ class MainWindow(QMainWindow):
             self.log(f"创建窗口失败: {e}")
             import traceback
             traceback.print_exc()
+        finally:
+            # 恢复按钮状态
+            self.btn_create_template.setEnabled(True)
+            self.btn_create_default.setEnabled(True)
+            self.btn_stop.setEnabled(False)
     
     def _stop_task(self):
         """停止当前任务"""
-        self.log("正在停止任务...")
-        # TODO: 实现停止逻辑
+        self._stop_flag = True
+        self.log("⚠️ 正在停止任务..."
+                 )
+        self.btn_stop.setEnabled(False)
     
     # ==================== Google专区功能 ====================
     
