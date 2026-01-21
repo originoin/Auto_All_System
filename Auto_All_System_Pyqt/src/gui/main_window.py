@@ -472,6 +472,8 @@ class MainWindow(QMainWindow):
         header.setStretchLastSection(True)
         
         self.browser_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.browser_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)  # 禁用选中效果
+        self.browser_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # 禁用焦点框
         self.browser_table.setAlternatingRowColors(True)  # 隔行变色
         layout.addWidget(self.browser_table)
         
@@ -585,9 +587,72 @@ class MainWindow(QMainWindow):
             traceback.print_exc()
     
     def _refresh_2fa(self):
-        """刷新并保存2FA验证码"""
+        """刷新并保存2FA验证码到文件"""
         self.log("正在刷新2FA验证码...")
-        # TODO: 实现2FA刷新逻辑
+        
+        try:
+            import pyotp
+            from core.bit_api import get_browser_list_simple
+            
+            browsers = get_browser_list_simple(page=0, page_size=1000)
+            
+            # 收集2FA信息
+            twofa_data = []
+            for browser in browsers:
+                name = browser.get('name', '')
+                remark = browser.get('remark', '')
+                
+                if '----' in remark:
+                    parts = remark.split('----')
+                    email = parts[0] if len(parts) > 0 else ''
+                    secret = parts[3].strip() if len(parts) >= 4 else ''
+                    
+                    if secret:
+                        try:
+                            totp = pyotp.TOTP(secret.replace(' ', ''))
+                            code = totp.now()
+                            twofa_data.append({
+                                'name': name,
+                                'email': email,
+                                'secret': secret,
+                                'code': code
+                            })
+                        except:
+                            pass
+            
+            if not twofa_data:
+                self.log("没有找到2FA验证码数据")
+                return
+            
+            # 保存到文件
+            import os
+            from datetime import datetime
+            
+            # 获取数据目录
+            data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+            os.makedirs(data_dir, exist_ok=True)
+            
+            # 生成文件名
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = os.path.join(data_dir, f'2fa_codes_{timestamp}.txt')
+            
+            # 写入文件
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(f"# 2FA验证码 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"# 共 {len(twofa_data)} 个账号\n\n")
+                for item in twofa_data:
+                    f.write(f"{item['name']}\t{item['email']}\t{item['code']}\t{item['secret']}\n")
+            
+            # 同时更新表格中的2FA列
+            self._refresh_browser_list()
+            
+            self.log(f"✅ 已保存 {len(twofa_data)} 个2FA验证码到: {filename}")
+            QMessageBox.information(self, "完成", f"已保存 {len(twofa_data)} 个2FA验证码\n文件: {os.path.basename(filename)}")
+            
+        except Exception as e:
+            self.log(f"刷新2FA失败: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _toggle_select_all(self, state):
         """全选/取消全选"""
