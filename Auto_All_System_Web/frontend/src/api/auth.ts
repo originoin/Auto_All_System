@@ -36,7 +36,7 @@ export const authApi = {
 
   // 刷新Token
   refreshToken(refresh: string): Promise<{ access_token: string }> {
-    return request.post('/token/refresh/', { refresh })
+    return request.post('/auth/refresh/', { refresh })
   },
 
   // 获取当前用户信息
@@ -44,4 +44,3 @@ export const authApi = {
     return request.get('/users/me/')
   }
 }
-

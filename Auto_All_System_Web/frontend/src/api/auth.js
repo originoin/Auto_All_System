@@ -14,7 +14,7 @@ export const authApi = {
     },
     // 刷新Token
     refreshToken(refresh) {
-        return request.post('/token/refresh/', { refresh });
+        return request.post('/auth/refresh/', { refresh });
     },
     // 获取当前用户信息
     getCurrentUser() {
